@@ -110,54 +110,77 @@
 		push $1 # lineIndex
 		push $1 # columnIndex
 		push $0 # nr. of live neighbours
-		lea matrix, %esi
-		lea matrixCopy, %edi
+		push $0 # distance from matrix start. Necessary only for printing in testing (eax gets deleted)
+		lea matrixCopy, %esi
+		lea matrix, %edi
 		
 		evolve__Line:
 			movl $1, -8(%ebp)	
 			evolve__Column:
+				
+				movl -8(%ebp), %eax
+				cmp m,%eax
+				jg evolve__Line_1
+			
 				movl -4(%ebp), %eax
 				mull maxN
 				addl -8(%ebp), %eax
-				lea (%esi, %eax), %edx
+				
+				movl %eax, -16(%ebp)
+				
+				incl -8(%ebp)
 				
 				movl $0, -12(%ebp)
 				xor %ecx, %ecx
 				loopNeighbour:
 					
 					cmp $8,%ecx
-					jge evolve__Line_1
+					jge evolve__Column_1
 					
-					lea neighbours, %eax
-					movl (%eax,%ecx,4), %ebx
+					lea neighbours, %edx
+					movl (%edx,%ecx,4), %ebx
+					addl %esi, %ebx # adding address of (%esi,%eax) in steps
 					
 					inc %ecx
-					cmpb $1, (%edx,%ebx)
+					cmpb $1, (%ebx,%eax)
 					
 					jne loopNeighbour
-					test:
 					incl -12(%ebp)
 					jmp loopNeighbour
 					
 					
-				evolve__Line_1:
+				evolve__Column_1:
 				
-					push -12(%ebp)
+					/*push -12(%ebp)
 					call printLong
-					popl %eax
+					popl %ebx
+					movl -16(%ebp), %eax*/
 				
-				
-					incl -8(%ebp)
-					movl -8(%ebp), %eax
-					cmp m,%eax
-					jle evolve__Column
-			
-			call printNewLine
+					movl -12(%ebp), %ebx
+					movb $0, (%edi,%eax) # assume cell will die
+					
+					cmp $2, %ebx
+					jl evolve__Column # underPopulation
+					cmp $3, %ebx
+					jg evolve__Column # overPopulation
+					
+					movb $1, (%edi,%eax) # assume cell will live (simpler to code)
+					cmp $3, %ebx
+					je evolve__Column # both live and dead cells become alive with 3 neighbours					
+					cmpb $1, (%esi,%eax) # alive cell survives with 2 neigbours
+					je evolve__Column
+					
+					movb $0, (%edi,%eax)  # dead cell isn't born with only 2 neighbours
+					jmp evolve__Column
+					
+		evolve__Line_1:
+			# call printNewLine
 			incl -4(%ebp)
 			movl -4(%ebp), %eax
 			cmp n, %eax
 			jle evolve__Line
-		addl $12,%esp
+			
+		addl $16,%esp
 		pop %ebp
 		ret
 
@@ -224,11 +247,9 @@
 	loopKvolution:
 		cmp k, %ecx
 		jge exit
-		push %ecx
+		push %ecx # saving it, not a parameter
 		
 		call evolve	
-		call printNewLine
-		
 		pop %ecx
 		inc %ecx
 		jmp loopKvolution
