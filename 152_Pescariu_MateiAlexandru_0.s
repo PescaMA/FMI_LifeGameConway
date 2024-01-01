@@ -3,8 +3,11 @@
 	m: .space 4 # nr. of columns
 	p: .space 4 # nr. of live cells
 	k: .space 4 # nr. of evolutions
+	maxN: .long 20
 	# tmp: .space 4 # temporary variable
-	matrix: .space 404
+	matrix: .space 404 # bordered matrix contining game state
+	matrixCopy: .space 404 # intermediary matrix for previous game state
+	neighbours: .long -21,-20,-19,-1,1,19,20,21 # distance from neighbours
 
 	cin: .asciz "%ld"
 	cout: .asciz "%ld "
@@ -37,23 +40,47 @@
 		call fflush
 		add $8,%esp
 		ret
+		
+	copyMatrix: # copies max matrix (for simplicity)
+		push $0
+		
+		lea matrix, %esi
+		lea matrixCopy, %edi
+		xor %ecx, %ecx
+		
+		copyMatrixLoop:
+			movl (%esi), %eax
+			movl %eax, 0(%edi)
+			addl $4, %esi
+			addl $4, %edi
+			
+			addl $4, %ecx
+			cmp $400, %ecx
+			jle copyMatrixLoop
+			
+		popl %ecx
+		ret
 
 	printMatrix:
 		pushl %ebp
 		mov %esp, %ebp
+		
+		
 		push $1 # lineIndex
 		push $1 # columnIndex
-		lea matrix, %esi
+		lea matrix, %esi # lea neighbours, %esi
 		
 		printMatrix__Line:
 			movl $1, -8(%ebp)
 			
 			printMatrix__Column:
 				movl -4(%ebp), %eax
-				mull n
+				mull maxN
 				addl -8(%ebp), %eax
 				
-				push (%esi, %eax, 4)
+				xor %edx, %edx
+				movb (%esi, %eax), %dl
+				push %edx
 				call printLong
 				addl $4, %esp
 				
@@ -74,6 +101,8 @@
 			addl $8,%esp
 			popl %ebp
 			ret
+
+
 
 
 
@@ -98,13 +127,13 @@
 	push %ebp
 	mov %esp, %ebp
 	
-	push $0 # lineIndex
-	push $0 # columnIndex
+	push $0 # lineIndex will be -4(%ebp)
+	push $0 # columnIndex will be -8(%ebp)
 	xor %ecx,%ecx
 
 	loopReadLive:
-	
 		push %ecx
+		
 		lea -4(%ebp), %ebx
 		push %ebx
 		call readLong
@@ -119,9 +148,9 @@
 		
 		lea matrix, %edi
 		movl -4(%ebp), %eax
-		mull n
+		mull maxN
 		addl -8(%ebp), %eax
-		movl $1, (%edi, %eax, 4)
+		movb $1, (%edi, %eax)
 		
 		pop %ecx
 		incl %ecx
@@ -135,7 +164,13 @@
 	call readLong
 	popl %eax
 	
-
+	# finished reading all input.
+	
+	call copyMatrix
+	
+	
+	
+	
 	call printMatrix
 
 	exit:
