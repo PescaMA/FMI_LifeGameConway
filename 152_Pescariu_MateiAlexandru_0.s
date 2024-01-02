@@ -3,15 +3,14 @@
 	m: .space 4 # nr. of columns
 	p: .space 4 # nr. of live cells
 	k: .space 4 # nr. of evolutions
-	maxN: .long 20
-	# tmp: .space 4 # temporary variable
-	matrix: .space 404 # bordered matrix contining game state
-	matrixCopy: .space 404 # intermediary matrix for previous game state
-	neighbours: .long -21,-20,-19,-1,1,19,20,21 # distance from neighbours
-
-	cin: .asciz "%ld"
-	cout: .asciz "%ld "
-	nl: .asciz "\n"
+	maxM: .long 20 # needed for matrix traversal
+	matrix: .space 404 # bordered matrix contining game state, 1 byte per state
+	matrixCopy: .space 404 # intermediary matrix required for storing previous game state on evolutions
+	neighbours: .long -21,-20,-19,-1,1,19,20,21 # distance from neighbours (on a 20x20 matrix)
+	
+	cin: .asciz "%ld" # format for scanf
+	cout: .asciz "%ld " # format for printf
+	nl: .asciz "\n"   # format for syscall with new line
 	
 .text
 
@@ -23,7 +22,6 @@
 		ret
 
 	printLong:
-		
 		push 4(%esp)
 		push $cout
 		call printf
@@ -32,33 +30,27 @@
 		add $12,%esp
 		ret
 		
-	printNewLine:
-		
-		push $nl
-		call printf
-		pushl $0
-		call fflush
-		add $8,%esp
+	printNewLine: # with syscall
+		mov $4, %eax # write
+		mov $1, %ebx # to console
+		mov $nl, %ecx # string to write
+		mov $2, %edx  # length of string
+		int $0x80 # syscall
 		ret
 		
-	copyMatrix: # copies max matrix (for simplicity)
-		push $0
-		
+	copyMatrix: # copies the max matrix of 20x20 (for simplicity)
 		lea matrix, %esi
 		lea matrixCopy, %edi
 		xor %ecx, %ecx
 		
 		copyMatrixLoop:
 			movl (%esi), %eax
-			movl %eax, 0(%edi)
+			movl %eax, 0(%edi) # copying 4 bytes (4 states) at a time for less traversing
 			addl $4, %esi
 			addl $4, %edi
-			
 			addl $4, %ecx
 			cmp $400, %ecx
 			jle copyMatrixLoop
-			
-		popl %ecx
 		ret
 
 	printMatrix:
@@ -66,16 +58,22 @@
 		mov %esp, %ebp
 		
 		lea matrix, %esi
-		push $1 # lineIndex
-		push $1 # columnIndex
-		
+		push $1 # lineIndex in -4(%ebp)
+		push $1 # columnIndex in -8(%ebp)
+		 
 		printMatrix__Line:
-		
-		
+			movl -4(%ebp), %eax
+			cmp n, %eax
+			jg printMatrix__Exit
+			
 			movl $1, -8(%ebp)
-			printMatrix__Column:
+			printMatrix__Column: 
+				movl -8(%ebp), %eax
+				cmp m,%eax
+				jg printMatrix__Line_1
+			
 				movl -4(%ebp), %eax
-				mull maxN
+				mull maxM
 				addl -8(%ebp), %eax
 				
 				xor %edx, %edx
@@ -85,16 +83,13 @@
 				addl $4, %esp
 				
 				incl -8(%ebp)
-				movl -8(%ebp), %eax
-				cmp m,%eax
-				jle printMatrix__Column
+				jmp printMatrix__Column
 				
-			call printNewLine
+		printMatrix__Line_1: # logical continuation of printMatrix__Line
+			call printNewLine 
 			
 			incl -4(%ebp)
-			movl -4(%ebp), %eax
-			cmp n, %eax
-			jle printMatrix__Line
+			jmp printMatrix__Line
 		
 		printMatrix__Exit:
 			addl $8,%esp
@@ -102,20 +97,24 @@
 			ret
 
 	evolve:
-		
 		push %ebp
 		movl %esp, %ebp
-		call copyMatrix
 		
-		push $1 # lineIndex
-		push $1 # columnIndex
-		push $0 # nr. of live neighbours
-		push $0 # distance from matrix start. Necessary only for printing in testing (eax gets deleted)
+		push $1 # lineIndex in -4(%ebp)
+		push $1 # columnIndex in -8(%ebp)
+		push $0 # nr. of live neighbours in -12(%ebp)
+		push $0 # -16(%ebp) is distance from matrix start. Necessary only for printing in testing (eax gets deleted)
+		
+		call copyMatrix
 		lea matrixCopy, %esi
 		lea matrix, %edi
 		
 		evolve__Line:
-			movl $1, -8(%ebp)	
+			movl -4(%ebp), %eax
+			cmp n, %eax
+			jg evolve__Exit
+		
+			movl $1, -8(%ebp)
 			evolve__Column:
 				
 				movl -8(%ebp), %eax
@@ -123,7 +122,7 @@
 				jg evolve__Line_1
 			
 				movl -4(%ebp), %eax
-				mull maxN
+				mull maxM
 				addl -8(%ebp), %eax
 				
 				movl %eax, -16(%ebp)
@@ -149,40 +148,38 @@
 					jmp loopNeighbour
 					
 					
-				evolve__Column_1:
+			evolve__Column_1:
+			
+				/*push -12(%ebp) # used for testing nr of neighbours
+				call printLong
+				popl %ebx
+				movl -16(%ebp), %eax*/
+			
+				movl -12(%ebp), %ebx
+				movb $0, (%edi,%eax) # assume cell will die
 				
-					/*push -12(%ebp)
-					call printLong
-					popl %ebx
-					movl -16(%ebp), %eax*/
+				cmp $2, %ebx
+				jl evolve__Column # underPopulation
+				cmp $3, %ebx
+				jg evolve__Column # overPopulation
 				
-					movl -12(%ebp), %ebx
-					movb $0, (%edi,%eax) # assume cell will die
-					
-					cmp $2, %ebx
-					jl evolve__Column # underPopulation
-					cmp $3, %ebx
-					jg evolve__Column # overPopulation
-					
-					movb $1, (%edi,%eax) # assume cell will live (simpler to code)
-					cmp $3, %ebx
-					je evolve__Column # both live and dead cells become alive with 3 neighbours					
-					cmpb $1, (%esi,%eax) # alive cell survives with 2 neigbours
-					je evolve__Column
-					
-					movb $0, (%edi,%eax)  # dead cell isn't born with only 2 neighbours
-					jmp evolve__Column
+				movb $1, (%edi,%eax) # assume cell will live (simpler to code)
+				cmp $3, %ebx
+				je evolve__Column # both live and dead cells become alive with 3 neighbours					
+				cmpb $1, (%esi,%eax) # alive cell survives with 2 neigbours
+				je evolve__Column
+				
+				movb $0, (%edi,%eax)  # dead cell isn't born with only 2 neighbours
+				jmp evolve__Column
 					
 		evolve__Line_1:
-			# call printNewLine
 			incl -4(%ebp)
-			movl -4(%ebp), %eax
-			cmp n, %eax
-			jle evolve__Line
-			
-		addl $16,%esp
-		pop %ebp
-		ret
+			jmp evolve__Line
+		
+		evolve__Exit:
+			addl $16,%esp
+			pop %ebp
+			ret
 
 
 
@@ -209,31 +206,33 @@
 	xor %ecx,%ecx
 
 	loopReadLive:
-		push %ecx
+		cmp p, %ecx
+		jge main_1
+		push %ecx # saving the caller-saved
 		
 		lea -4(%ebp), %ebx
 		push %ebx
 		call readLong
 		pop %ebx
-		incl -4(%ebp)
+		incl -4(%ebp) # add space for border of 0s
 		
 		lea -8(%ebp), %ebx
 		push %ebx
 		call readLong
 		pop %ebx
-		incl -8(%ebp)
+		incl -8(%ebp) # add space for border of 0s
 		
 		lea matrix, %edi
 		movl -4(%ebp), %eax
-		mull maxN
+		mull maxM
 		addl -8(%ebp), %eax
 		movb $1, (%edi, %eax)
 		
 		pop %ecx
 		incl %ecx
-		cmp p, %ecx
-		jl loopReadLive
+		jmp loopReadLive
 		
+main_1: #continuation of main
 	addl $8, %esp
 	pop %ebp
 	
@@ -241,7 +240,7 @@
 	call readLong
 	popl %eax
 	
-	# finished reading all input.
+	# finished reading all input. Now calculating evolutions
 	
 	xor %ecx, %ecx
 	loopKvolution:
@@ -255,8 +254,8 @@
 		jmp loopKvolution
 
 	exit:
-	call printMatrix
-	
-	mov $1, %eax
-	xor %ebx, %ebx
-	int $0x80
+		call printMatrix
+		
+		mov $1, %eax
+		xor %ebx, %ebx
+		int $0x80
