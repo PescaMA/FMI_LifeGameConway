@@ -280,6 +280,10 @@ main_1: #continuation of main
 		call fclose
 		popl %eax
 		
+		push fout
+		call fclose
+		popl %eax
+		
 		mov $1, %eax
 		xor %ebx, %ebx
 		int $0x80
