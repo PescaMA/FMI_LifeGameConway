@@ -3,13 +3,20 @@
 	m: .space 4 # nr. of columns
 	p: .space 4 # nr. of live cells
 	k: .space 4 # nr. of evolutions
+	query: .space 4 # 0 for encrypt, 1 for decrypt
 	maxM: .long 20 # needed for matrix traversal
 	matrix: .space 404 # bordered matrix contining game state, 1 byte per state
 	matrixCopy: .space 404 # intermediary matrix required for storing previous game state on evolutions
 	neighbours: .long -21,-20,-19,-1,1,19,20,21 # distance from neighbours (on a 20x20 matrix)
+	password: .space 12
+	hexPassword: .space 28
+	passLen : .space 4
 	
+	cinStr: .asciz "%10s" 
 	cin: .asciz "%ld" # format for scanf
 	cout: .asciz "%ld " # format for printf
+	coutHex: .asciz "%X"
+	HexStart: .asciz "0x"
 	nl: .asciz "\n"   # format for syscall with new line
 	
 .text
@@ -19,6 +26,64 @@
 		push $cin
 		call scanf
 		addl $8, %esp
+		ret
+		
+	readString:
+		push 4(%esp)
+		push $cinStr
+		call scanf
+		popl %eax
+		call strlen
+		popl %eax
+		mov 8(%esp), %eax
+		mov %edx, (%eax)
+		ret
+		
+	readHex: # param: string. read hex and put in string
+		ret
+		
+		
+	printString: # param: string, length
+		mov $4, %eax
+		mov $1, %ebx
+		mov 4(%esp), %ecx
+		mov 8(%esp), %edx
+		int $0x80 
+		ret
+		
+	printHexStr: # param: string
+		mov $4, %eax
+		mov $1, %ebx
+		mov $HexStart, %ecx
+		mov $2, %edx
+		int $0x80 
+	
+		mov 4(%esp), %esi
+		xor %ecx, %ecx
+		loopPrintHex:
+			cmpb $0, (%esi,%ecx,1)
+			je printHexStr_1
+			
+			
+			xor %eax, %eax
+			movb (%esi,%ecx,1), %al
+			push %ecx
+			push %eax
+			push $coutHex
+			call printf
+			pop %ecx
+			pop %ecx
+			pop %ecx
+			
+			inc %ecx
+			jmp loopPrintHex
+			
+	printHexStr_1:
+		
+		push $0
+		call fflush
+		popl %ecx
+		call printNewLine
 		ret
 
 	printLong:
@@ -180,8 +245,22 @@
 			addl $16,%esp
 			pop %ebp
 			ret
-
-
+			
+	encrypt:
+		push $passLen
+		push $password
+		call readString
+		addl $8, %esp
+	
+		push $password
+		call printHexStr
+		addl $4, %esp
+		
+		ret
+		
+	decrypt:
+		
+		ret
 
 .global main
 	main:
@@ -240,21 +319,41 @@ main_1: #continuation of main
 	call readLong
 	popl %eax
 	
-	# finished reading all input. Now calculating evolutions
+	# calculating evolutions before finishing reading
 	
 	xor %ecx, %ecx
 	loopKvolution:
 		cmp k, %ecx
-		jge exit
+		jge main_2
 		push %ecx # saving it, not a parameter
 		
 		call evolve	
 		pop %ecx
 		inc %ecx
 		jmp loopKvolution
+		
+main_2:
+	pushl $query
+	call readLong
+	popl %eax
+	
+	cmpl $1, query
+	je main_3
+	
+	cmpl $0, query
+	jne exit
+	call encrypt
+	jmp exit
+	
+main_3: # accessed only in decrypt
+	call decrypt
+	jmp exit
+	
+	
+		
 
 	exit:
-		call printMatrix
+		# call printMatrix
 		
 		mov $1, %eax
 		xor %ebx, %ebx
