@@ -13,23 +13,23 @@
 	passLen : .space 4
 	
 	cinStr10: .asciz "%10s"
-	cinStr20: .asciz "%22s"  
-	cin: .asciz "%ld" # format for scanf
-	cout: .asciz "%ld " # format for printf
-	coutHex: .asciz "%X"
-	HexStart: .asciz "0x"
-	nl: .asciz "\n"   # format for syscall with new line
+	cinStr22: .asciz "%22s"  
+	cin: .asciz "%ld" # format for scanf with a long
+	cout: .asciz "%ld " # format for printf with a long
+	coutHex: .asciz "%02X" # format for hex. always outputs 2 digits.
+	HexStart: .asciz "0x"  # the beginning of a hex string
+	nl: .asciz "\n"   # format for new line
 	
 .text
 
-	readLong:
+	readLong: # param: address to long
 		push 4(%esp)
 		push $cin
 		call scanf
 		addl $8, %esp
 		ret
 		
-	readString:
+	readString: # param: string address, string length
 		push 4(%esp)
 		push $cinStr10
 		call scanf
@@ -40,9 +40,11 @@
 		mov %edx, (%eax)
 		ret
 		
-	readHex: # param: string, length. read hex and put in string
+	readHex: # param: string, length.
+		 # function reads hex and puts it in string
+		 
 		push $hexPassword
-		push $cinStr20
+		push $cinStr22
 		call scanf
 		popl %eax
 		call strlen # edx now has length
@@ -50,34 +52,39 @@
 		sar $1, %edx
 		mov 8(%esp), %eax
 		movl %edx, (%eax)
+		# reading a string (which is actually the hex) and saving the length.
 		
 		lea hexPassword, %esi
 		movl 4(%esp), %edi
-		mov $1, %ecx # skip first 2 bytes (0x)
+		mov $1, %ecx # skip first pair of bytes (it being "0x")
 		
 		readHex_loop:
 			cmp %edx, %ecx
 			jge readHex_exit
 			
-			sal $1, %ecx # 2 hex values will translate to 1 byte
+			sal $1, %ecx # 2 hex values will translate to 1 byte. so we travers with a multiple of two index the hex string.
+			
 			xor %eax, %eax
 			movb 0(%esi,%ecx), %al
 			subl $48, %eax
-			cmp $10,%eax
+			cmp $10,%eax  # A-F from hex are further in the ascii table then the 10 digits.
 			jl readHex_loop_1
 			subl $7, %eax 
+			# transforming first hex character of a pair to the top half of the byte in eax. 48 is ascii for '0' and 48 + 7 is the ascii before 'A'. We transform in binary.
+			
 		readHex_loop_1:
 			sal $4, %eax
 			
-			subl $48, 1(%esi,%ecx)
+			subl $48, 1(%esi,%ecx) # not substracting eax because I need to compare with only this part.
 			addb 1(%esi,%ecx), %al
 			cmpb $10, 1(%esi,%ecx)
 			jl readHex_loop_2
 			subl $7, %eax 
+			# transforming second hex character to the bottom half of the byte. 
 			
 		readHex_loop_2:
 			sar $1, %ecx
-			movb %al, -1(%edi,%ecx)
+			movb %al, -1(%edi,%ecx) # -1 because we don't save the "0x" of hex.
 			
 			inc %ecx
 			jmp readHex_loop
@@ -94,29 +101,32 @@
 		int $0x80 
 		ret
 		
-	printHexStr: # param: string
-		# will print with %X which transforms in hex.
+	printHexStr: # param: just the string
+		# function will print with %X which transforms in hex.
 		mov $4, %eax
 		mov $1, %ebx
 		mov $HexStart, %ecx
 		mov $2, %edx
 		int $0x80 
+		# outputed "0x" with syscall
 	
 		mov 4(%esp), %esi
 		xor %ecx, %ecx
 		loopPrintHex:
-			cmpb $0, (%esi,%ecx,1)
+			cmpb $0, (%esi,%ecx,1) # finish on "\0" character
 			je printHexStr_exit
 			
 			xor %eax, %eax
 			movb (%esi,%ecx,1), %al
-			push %ecx
+			push %ecx # saving caller-saved variable
+			
 			push %eax
 			push $coutHex
 			call printf
 			pop %ecx
 			pop %ecx
-			pop %ecx
+			
+			pop %ecx # restoring
 			
 			inc %ecx
 			jmp loopPrintHex
@@ -295,53 +305,70 @@
 		lea password, %edi
 		push $0 # lineIndex in -4(%ebp)
 		push $0 # columnIndex in -8(%ebp)
-		push $0 # next 8 matrix bits
-		push $0 # counter for nr bits added
+		push $0 # next 8 matrix bits in -12(%ebp)
+		push $0 # counter for nr bits added in -16(%ebp)
 		xor %ecx, %ecx # nr of characters XOR-ed
 		 
+		incl n # to include the border
+		incl m # to include the border
+		 
+		# the stopping condition of the following for loops will be reaching the end of password (and not the end of the matrix)
 		xorEncrypt__Line:
 			
 			movl $0, -8(%ebp)
 			xorEncrypt__Column: 
 				movl -8(%ebp), %eax
-				dec %eax
 				cmp m,%eax
 				jg xorEncrypt__Line_1
+				# break condition if finished line
 			
 				movl -4(%ebp), %eax
 				mull maxM
 				addl -8(%ebp), %eax
 				incl -8(%ebp)
+				# eax = distance from matrix start to current element. Also, increasing column index
 				
 				xor %edx,%edx
 				movb (%esi,%eax), %dl
 				sall $1, -12(%ebp)
 				addl %edx, -12(%ebp)
+				# adding current element to the formation of a byte
+				
 				incl -16(%ebp)
 				cmpl $8, -16(%ebp)
 				jb xorEncrypt__Column
+				# continue (skip current index) condition if haven't finished the byte
 				
-				movl $0, -16(%ebp)
 				movl -12(%ebp), %eax
 				movl $0, -12(%ebp)
+				movl $0, -16(%ebp)
+				# resetting byte and byte index (after copying the byte to eax)
+				
 				xorb %al, (%edi, %ecx)
+				# the encryption
+				
 				incl %ecx
 				cmp passLen, %ecx
 				je xorEncrypt__Exit
+				# exit condition for finishing all characters in message
 				
 				jmp xorEncrypt__Column
+				#continue column loop
 				
-		xorEncrypt__Line_1: # logical continuation of printMatrix__Line
+		xorEncrypt__Line_1: # logical continuation of xorEncrypt__Line
 			
 			incl -4(%ebp)
 			movl -4(%ebp), %eax
-			dec %eax
 			cmp n, %eax
 			jle xorEncrypt__Line
 			movl $0, -4(%ebp) 
+			# when reaching the end of the matrix, we start again from beginning
+			
 			jmp xorEncrypt__Line
 		
 		xorEncrypt__Exit:
+			decl n
+			decl m	
 			addl $16,%esp
 			popl %ebp
 			ret
@@ -363,7 +390,7 @@
 	decrypt:
 		push $passLen
 		push $password
-		call readHex
+		call readHex # transform hex to string.
 		addl $8, %esp
 		
 		call xorEncrypt
@@ -460,9 +487,6 @@ main_2:
 main_3: # accessed only in decrypt
 	call decrypt
 	jmp exit
-	
-	
-		
 
 	exit:
 		call printNewLine
