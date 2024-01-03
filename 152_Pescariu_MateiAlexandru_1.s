@@ -12,7 +12,8 @@
 	hexPassword: .space 28
 	passLen : .space 4
 	
-	cinStr: .asciz "%10s" 
+	cinStr10: .asciz "%10s"
+	cinStr20: .asciz "%22s"  
 	cin: .asciz "%ld" # format for scanf
 	cout: .asciz "%ld " # format for printf
 	coutHex: .asciz "%X"
@@ -30,16 +31,58 @@
 		
 	readString:
 		push 4(%esp)
-		push $cinStr
+		push $cinStr10
 		call scanf
 		popl %eax
-		call strlen
+		call strlen # edx now has length
 		popl %eax
 		mov 8(%esp), %eax
 		mov %edx, (%eax)
 		ret
 		
-	readHex: # param: string. read hex and put in string
+	readHex: # param: string, length. read hex and put in string
+		push $hexPassword
+		push $cinStr20
+		call scanf
+		popl %eax
+		call strlen # edx now has length
+		popl %eax
+		sar $1, %edx
+		mov 8(%esp), %eax
+		movl %edx, (%eax)
+		
+		lea hexPassword, %esi
+		movl 4(%esp), %edi
+		mov $1, %ecx # skip first 2 bytes (0x)
+		
+		readHex_loop:
+			cmp %edx, %ecx
+			jge readHex_exit
+			
+			sal $1, %ecx # 2 hex values will translate to 1 byte
+			xor %eax, %eax
+			movb 0(%esi,%ecx), %al
+			subl $48, %eax
+			cmp $10,%eax
+			jl readHex_loop_1
+			subl $7, %eax 
+		readHex_loop_1:
+			sal $4, %eax
+			
+			subl $48, 1(%esi,%ecx)
+			addb 1(%esi,%ecx), %al
+			cmpb $10, 1(%esi,%ecx)
+			jl readHex_loop_2
+			subl $7, %eax 
+			
+		readHex_loop_2:
+			sar $1, %ecx
+			movb %al, -1(%edi,%ecx)
+			
+			inc %ecx
+			jmp readHex_loop
+		
+		readHex_exit:
 		ret
 		
 		
@@ -52,6 +95,7 @@
 		ret
 		
 	printHexStr: # param: string
+		# will print with %X which transforms in hex.
 		mov $4, %eax
 		mov $1, %ebx
 		mov $HexStart, %ecx
@@ -62,8 +106,7 @@
 		xor %ecx, %ecx
 		loopPrintHex:
 			cmpb $0, (%esi,%ecx,1)
-			je printHexStr_1
-			
+			je printHexStr_exit
 			
 			xor %eax, %eax
 			movb (%esi,%ecx,1), %al
@@ -78,8 +121,7 @@
 			inc %ecx
 			jmp loopPrintHex
 			
-	printHexStr_1:
-		
+	printHexStr_exit:
 		push $0
 		call fflush
 		popl %ecx
@@ -259,7 +301,16 @@
 		ret
 		
 	decrypt:
+		push $passLen
+		push $password
+		call readHex
+		addl $8, %esp
 		
+		
+		push passLen
+		push $password
+		call printString
+		addl $8, %esp
 		ret
 
 .global main
