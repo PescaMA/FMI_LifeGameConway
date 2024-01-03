@@ -125,7 +125,6 @@
 		push $0
 		call fflush
 		popl %ecx
-		call printNewLine
 		ret
 
 	printLong:
@@ -287,12 +286,73 @@
 			addl $16,%esp
 			pop %ebp
 			ret
+	
+	xorEncrypt:
+		pushl %ebp
+		mov %esp, %ebp
+		
+		lea matrix, %esi
+		lea password, %edi
+		push $0 # lineIndex in -4(%ebp)
+		push $0 # columnIndex in -8(%ebp)
+		push $0 # next 8 matrix bits
+		push $0 # counter for nr bits added
+		xor %ecx, %ecx # nr of characters XOR-ed
+		 
+		xorEncrypt__Line:
+			
+			movl $0, -8(%ebp)
+			xorEncrypt__Column: 
+				movl -8(%ebp), %eax
+				dec %eax
+				cmp m,%eax
+				jg xorEncrypt__Line_1
+			
+				movl -4(%ebp), %eax
+				mull maxM
+				addl -8(%ebp), %eax
+				incl -8(%ebp)
+				
+				xor %edx,%edx
+				movb (%esi,%eax), %dl
+				sall $1, -12(%ebp)
+				addl %edx, -12(%ebp)
+				incl -16(%ebp)
+				cmpl $8, -16(%ebp)
+				jb xorEncrypt__Column
+				
+				movl $0, -16(%ebp)
+				movl -12(%ebp), %eax
+				movl $0, -12(%ebp)
+				xorb %al, (%edi, %ecx)
+				incl %ecx
+				cmp passLen, %ecx
+				je xorEncrypt__Exit
+				
+				jmp xorEncrypt__Column
+				
+		xorEncrypt__Line_1: # logical continuation of printMatrix__Line
+			
+			incl -4(%ebp)
+			movl -4(%ebp), %eax
+			dec %eax
+			cmp n, %eax
+			jle xorEncrypt__Line
+			movl $0, -4(%ebp) 
+			jmp xorEncrypt__Line
+		
+		xorEncrypt__Exit:
+			addl $16,%esp
+			popl %ebp
+			ret
 			
 	encrypt:
 		push $passLen
 		push $password
 		call readString
 		addl $8, %esp
+		
+		call xorEncrypt
 	
 		push $password
 		call printHexStr
@@ -306,6 +366,7 @@
 		call readHex
 		addl $8, %esp
 		
+		call xorEncrypt
 		
 		push passLen
 		push $password
@@ -404,8 +465,7 @@ main_3: # accessed only in decrypt
 		
 
 	exit:
-		# call printMatrix
-		
+		call printNewLine
 		mov $1, %eax
 		xor %ebx, %ebx
 		int $0x80
