@@ -38,7 +38,7 @@
 		add $12,%esp
 		ret
 		
-	printNewLine: # with syscall
+	printNewLine:
 		push $nl
 		push fout
 		call fprintf
