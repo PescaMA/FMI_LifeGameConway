@@ -52,6 +52,7 @@
 		sar $1, %edx
 		mov 8(%esp), %eax
 		movl %edx, (%eax)
+		decl (%eax)
 		# reading a string (which is actually the hex) and saving the length.
 		
 		lea hexPassword, %esi
@@ -490,6 +491,11 @@ main_3: # accessed only in decrypt
 
 	exit:
 		call printNewLine
+		
+		push $0
+		call fflush
+		addl $4, %esp
+		
 		mov $1, %eax
 		xor %ebx, %ebx
 		int $0x80
