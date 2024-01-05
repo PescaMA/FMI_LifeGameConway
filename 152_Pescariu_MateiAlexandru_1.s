@@ -29,16 +29,33 @@
 		addl $8, %esp
 		ret
 		
+	strlen1: # just in case. strlen didn't work for me without the -no-pie flag.
+		xor %edx, %edx # just like strlen, edx register will hold the result.
+		loopStrlen1:
+			xor %eax,%eax
+			xor %ecx, %ecx
+			movl 4(%esp), %ecx
+			movb (%ecx,%edx), %al
+			cmp $0, %al
+			je strLen1_exit
+			inc %edx
+			jmp loopStrlen1
+		
+		strLen1_exit:
+		ret
+		
 	readString: # param: string address, string length
 		push 4(%esp)
 		push $cinStr10
 		call scanf
 		popl %eax
-		call strlen # edx now has length
+		call strlen1 # edx now has length
 		popl %eax
 		mov 8(%esp), %eax
 		mov %edx, (%eax)
 		ret
+		
+	
 		
 	readHex: # param: string, length.
 		 # function reads hex and puts it in string
@@ -47,7 +64,7 @@
 		push $cinStr22
 		call scanf
 		popl %eax
-		call strlen # edx now has length
+		call strlen1 # edx now has length
 		popl %eax
 		sar $1, %edx
 		mov 8(%esp), %eax
