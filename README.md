@@ -4,7 +4,9 @@ This project **simulates** Conway's game of life (problems 0 and 2 only do this;
 
 These programs were part of a faculty project, at the The Faculty of Mathematics and Computer Science of the University of Bucharest, at Computer Science section, year I, semester I.
 
-Therefore, their only scope is to pass the requirements given: matrix of maximum 18*18 for the simulation, encrypted message of maximum length of 10 characters. The matrix is considered to be bordered by 0-s in all directions, which cannot become live cells.
+The main gimmick of this project is the programming language it's made in: **Assembly**. Mainly *x86 architecture for 32-bit in AT&T syntax Assembly, with Linux instructions*. I studied this programming language at the above-mentioned faculty, at ASC = Computing Systems Architecture.
+
+The only scope of the project is to pass the requirements given: matrix of maximum 18*18 for the simulation, encrypted message of maximum length of 10 characters. The matrix is considered to be bordered by 0-s in all directions, which cannot become live cells.I got full marks on this project, whcih was tested auromatically with the inputs found in [/Exec/ExtraInputs/](/Exec/ExtraInputs/).
 
 ## Installation
 
@@ -23,11 +25,11 @@ In my script, compile.sh also re-compiles before running run.sh.
 
 Examples for using my script:
 
-`bash run.sh **p1** **p2**`
+> bash run.sh **p1** **p2**
 
-where p1 = the problem you want to execute. Default is problem 1 (that encrypts).
+where **p1** = the problem you want to execute. Default is problem 1 (that encrypts).
 
-and p2 = either path to file which would use that file for input __or__
+and **p2** = either path to file which would use that file for input __or__
 invalid path for reading from console. Not providing the parameter, uses the example in [/Exec/Examples](/Exec/Examples).
 
 > Examples of usage:
@@ -59,7 +61,7 @@ The output will be the resulting matrix.
 > 6. decrypt - will be 0 if you want to encrypt and 1 if you want to decrypt.
 > 7. message - will have 2 formats:
 > - for encrypting it will be a string of maximum 10 characters.
-> - for decrypting it will be a **hexadecimal** value of the format  0xV1V2V3V4, where Vi are hex values (0-F), and the total amount of Vi's is even.
+> - for decrypting it will be a **hexadecimal** value of the format  0xV1V2V3V4, where Vi are hex values (0-F), and the total amount of Vi's is even and at max 10 such values.
 
 The output will be the encrypted/decrypted value in the opposing format given in input.
 
